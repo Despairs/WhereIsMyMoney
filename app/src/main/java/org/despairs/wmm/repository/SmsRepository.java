@@ -8,5 +8,5 @@ import java.util.List;
  * Created by EKovtunenko on 15.11.2019.
  */
 public interface SmsRepository {
-    List<Sms> listBySender(String sender);
+    List<Sms> listBySenderAndMessageContainingWords(String sender, String... like);
 }

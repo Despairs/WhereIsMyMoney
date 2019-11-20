@@ -5,8 +5,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import org.despairs.wmm.App;
 import org.despairs.wmm.R;
-import org.despairs.wmm.repository.entity.Sms;
+import org.despairs.wmm.ui.home.HomeFragment;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -17,17 +18,12 @@ import androidx.recyclerview.widget.RecyclerView;
 /**
  * Created by EKovtunenko on 18.11.2019.
  */
-public class SmsAdapter extends RecyclerView.Adapter<SmsAdapter.ViewHolder> {
+public class SalaryAdapter extends RecyclerView.Adapter<SalaryAdapter.ViewHolder> {
 
-    private List<Sms> items;
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("LLLL YYYY");
+    private List<HomeFragment.Salary> items;
 
-    public SmsAdapter(List<Sms> items) {
-        items.removeIf(sms -> {
-            boolean isNotSalary = !sms.getMessage().contains("зарплаты");
-            boolean isNotOtpusk = !sms.getMessage().contains("отпускных");
-            boolean isNotAvans = !sms.getMessage().contains("аванса");
-            return isNotSalary && isNotOtpusk && isNotAvans;
-        });
+    public SalaryAdapter(List<HomeFragment.Salary> items) {
         this.items = items;
     }
 
@@ -40,10 +36,10 @@ public class SmsAdapter extends RecyclerView.Adapter<SmsAdapter.ViewHolder> {
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        Sms sms = items.get(position);
+        HomeFragment.Salary salary = items.get(position);
 
-        holder.messageView.setText(sms.getMessage());
-        holder.dateView.setText(DateTimeFormatter.ISO_DATE_TIME.format(sms.getDate()));
+        holder.factAmountView.setText(App.context.getString(R.string.salary_amount_fact, salary.getAmount()));
+        holder.periodView.setText(FORMATTER.format(salary.getBillingPeriod()));
     }
 
     @Override
@@ -53,13 +49,13 @@ public class SmsAdapter extends RecyclerView.Adapter<SmsAdapter.ViewHolder> {
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
 
-        private TextView messageView;
-        private TextView dateView;
+        private TextView factAmountView;
+        private TextView periodView;
 
         ViewHolder(View v) {
             super(v);
-            messageView = v.findViewById(R.id.fragment_home_list_item_text_view_message);
-            dateView = v.findViewById(R.id.fragment_home_list_item_text_view_date);
+            factAmountView = v.findViewById(R.id.fragment_home_list_item_text_view_fact_amount);
+            periodView = v.findViewById(R.id.fragment_home_list_item_text_view_period);
         }
 
     }
