@@ -1,19 +1,19 @@
 package org.despairs.wmm.ui.home;
 
-import android.content.Context;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import org.despairs.wmm.R;
+import org.despairs.wmm.databinding.FragmentHomeBinding;
 import org.despairs.wmm.repository.JdbcSmsRepository;
 import org.despairs.wmm.repository.entity.Sms;
-import org.despairs.wmm.ui.home.adapter.SalaryAdapter;
+import org.despairs.wmm.ui.home.adapter.SummaryPaycheckInfoAdapter;
+import org.despairs.wmm.ui.home.entity.Paycheck;
+import org.despairs.wmm.ui.home.entity.SummaryPaycheckInfo;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,56 +25,71 @@ import java.util.stream.Stream;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.DividerItemDecoration;
-import androidx.recyclerview.widget.RecyclerView;
+
+import static java.util.Collections.emptyList;
+import static org.despairs.wmm.utils.Converters.convertAmountToString;
+import static org.despairs.wmm.utils.Converters.convertToString;
 
 public class HomeFragment extends Fragment {
 
-    private static final Pattern SALARY_SMS_PATTERN = Pattern.compile(".*\\s(\\d+(\\.\\d+)?)р Баланс.*");
+    private final JdbcSmsRepository repo = new JdbcSmsRepository();
+    private List<Paycheck> paycheckEntries;
+    private List<SummaryPaycheckInfo> summaryInfos;
+    private Map<LocalDateTime, List<Paycheck>> paycheckByPeriod;
+
+    private static final Pattern PAYCHECK_SMS_PATTERN = Pattern.compile(".*\\s(\\d+(\\.\\d+)?)р Баланс.*");
 
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        View root = inflater.inflate(R.layout.fragment_home, container, false);
+        FragmentHomeBinding binding = FragmentHomeBinding.inflate(inflater);
+        View root = binding.getRoot();
+        binding.homeSummaryView.addItemDecoration(new DividerItemDecoration(root.getContext(), DividerItemDecoration.VERTICAL));
+        binding.homeSummaryView.setAdapter(new SummaryPaycheckInfoAdapter(getSummaryInfo()));
+        binding.homeSummaryView.setHasFixedSize(true);
 
-        if (root instanceof RecyclerView) {
-            Context context = root.getContext();
-            RecyclerView recyclerView = (RecyclerView) root;
-            recyclerView.setHasFixedSize(true);
-            recyclerView.setAdapter(new SalaryAdapter(getSalary()));
-            recyclerView.addItemDecoration(new DividerItemDecoration(context, DividerItemDecoration.VERTICAL));
-        }
+        Paycheck lastPaycheck = paycheckEntries.stream().max((p1, p2) -> p1.getBillingPeriod().compareTo(p2.getBillingPeriod())).get();
 
+        String lastPaycheckValue = String.format("%s от %s", convertAmountToString(lastPaycheck.getAmount()), convertToString(lastPaycheck.getDate()));
+        binding.lastPaycheckValue.setText(lastPaycheckValue);
+        binding.nextPaycheckDaysValue.setText("5");
         return root;
     }
 
-    private List<Salary> getSalary() {
-        List<Sms> messages = new JdbcSmsRepository().listBySenderAndMessageContainingWords("900", "зарплаты", "отпускных", "аванса", "премии");
-        //@TODO не использовать Salary как промежуточное хранилище?
-        List<Salary> list = messages.stream()
-                .map(this::tryToParseAsSalary)
+    private List<SummaryPaycheckInfo> getSummaryInfo() {
+        if (summaryInfos == null) {
+            paycheckEntries = getPaycheckEntries();
+            paycheckByPeriod = paycheckEntries.stream()
+                    .collect(Collectors.groupingBy(Paycheck::getBillingPeriod));
+            summaryInfos = paycheckByPeriod.keySet().stream()
+                    .map(period -> {
+                        List<Paycheck> entries = paycheckByPeriod.getOrDefault(period, emptyList());
+                        return SummaryPaycheckInfo.builder()
+                                .billingPeriod(period)
+                                .amount(entries.stream().map(Paycheck::getAmount).mapToDouble(f -> f).sum())
+                                .items(entries)
+                                .build();
+                    })
+                    .sorted((o1, o2) -> o2.getBillingPeriod().compareTo(o1.getBillingPeriod()))
+                    .collect(Collectors.toList());
+
+        }
+        return summaryInfos;
+    }
+
+    private List<Paycheck> getPaycheckEntries() {
+        List<Sms> messages = repo.listBySenderAndMessageContainingWords("900", "зарплаты", "отпускных", "аванса", "премии");
+        return messages.stream()
+                .map(this::tryToParseAsPaycheck)
                 .flatMap(o -> o.map(Stream::of).orElseGet(Stream::empty))
                 .collect(Collectors.toList());
-
-        Map<LocalDateTime, Double> collect = list.stream()
-                .collect(Collectors.groupingBy(Salary::getBillingPeriod, Collectors.summingDouble(Salary::getAmount)));
-
-        return collect.entrySet().stream()
-                .map(entry -> new Salary(entry.getKey(), entry.getValue(), getAllByPeriod(list, entry.getKey())))
-                .sorted((o1, o2) -> o2.getBillingPeriod().compareTo(o1.getBillingPeriod()))
-                .collect(Collectors.toList());
     }
 
-    private List<Salary> getAllByPeriod(List<Salary> salaries, LocalDateTime billingPeriod) {
-        return salaries.stream()
-                .filter(s -> s.billingPeriod.equals(billingPeriod))
-                .collect(Collectors.toList());
-    }
-
-    private Optional<Salary> tryToParseAsSalary(Sms sms) {
-        Optional<Salary> ret = Optional.empty();
-        Matcher matcher = SALARY_SMS_PATTERN.matcher(sms.getMessage());
+    private Optional<Paycheck> tryToParseAsPaycheck(Sms sms) {
+        Optional<Paycheck> ret = Optional.empty();
+        Matcher matcher = PAYCHECK_SMS_PATTERN.matcher(sms.getMessage());
         if (matcher.matches()) {
             double amount = Double.parseDouble(matcher.group(1));
             LocalDateTime period = getBillingPeriod(sms);
-            ret = Optional.of(new Salary(period, amount, getType(sms)));
+            ret = Optional.of(new Paycheck(period, sms.getDate(), amount, getType(sms)));
         }
         return ret;
     }
@@ -100,40 +115,6 @@ public class HomeFragment extends Fragment {
             date = date.minusMonths(1);
         }
         return date.withDayOfMonth(1).truncatedTo(ChronoUnit.DAYS);
-    }
-
-    public static class Salary {
-
-        public double amount;
-        public LocalDateTime billingPeriod;
-        public String type;
-        public List<Salary> items = Collections.emptyList();
-        public boolean expanded;
-
-        public Salary(LocalDateTime billingPeriod, double amount) {
-            this.amount = amount;
-            this.billingPeriod = billingPeriod;
-        }
-
-        public Salary(LocalDateTime billingPeriod, double amount, List<Salary> items) {
-            this.amount = amount;
-            this.billingPeriod = billingPeriod;
-            this.items = items;
-        }
-
-        public Salary(LocalDateTime billingPeriod, double amount, String type) {
-            this.amount = amount;
-            this.billingPeriod = billingPeriod;
-            this.type = type;
-        }
-
-        public double getAmount() {
-            return amount;
-        }
-
-        public LocalDateTime getBillingPeriod() {
-            return billingPeriod;
-        }
     }
 
 }
