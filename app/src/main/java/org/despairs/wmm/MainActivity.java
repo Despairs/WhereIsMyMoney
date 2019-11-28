@@ -22,12 +22,6 @@ public class MainActivity extends AppCompatActivity {
         askPermissions();
 
         setContentView(R.layout.activity_main);
-
-        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment);
-        BottomNavigationView navView = findViewById(R.id.nav_view);
-        NavigationUI.setupWithNavController(navView, navController);
-
-
     }
 
     private void askPermissions() {

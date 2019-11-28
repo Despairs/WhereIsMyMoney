@@ -27,8 +27,9 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.DividerItemDecoration;
 
 import static java.util.Collections.emptyList;
-import static org.despairs.wmm.utils.Converters.convertAmountToString;
-import static org.despairs.wmm.utils.Converters.convertToString;
+import static java.util.stream.Collectors.averagingInt;
+import static org.despairs.wmm.utils.Converters.convertBillingPeriodToString;
+import static org.despairs.wmm.utils.Converters.convertToStringDate;
 
 public class HomeFragment extends Fragment {
 
@@ -36,6 +37,7 @@ public class HomeFragment extends Fragment {
     private List<Paycheck> paycheckEntries;
     private List<SummaryPaycheckInfo> summaryInfos;
     private Map<LocalDateTime, List<Paycheck>> paycheckByPeriod;
+    private Map<String, Double> averagePaycheckDay;
 
     private static final Pattern PAYCHECK_SMS_PATTERN = Pattern.compile(".*\\s(\\d+(\\.\\d+)?)р Баланс.*");
 
@@ -48,15 +50,22 @@ public class HomeFragment extends Fragment {
 
         Paycheck lastPaycheck = paycheckEntries.stream().max((p1, p2) -> p1.getBillingPeriod().compareTo(p2.getBillingPeriod())).get();
 
-        String lastPaycheckValue = String.format("%s от %s", convertAmountToString(lastPaycheck.getAmount()), convertToString(lastPaycheck.getDate()));
-        binding.lastPaycheckValue.setText(lastPaycheckValue);
-        binding.nextPaycheckDaysValue.setText("5");
+        String lastPaycheckType = lastPaycheck.getType();
+        String lastPaycheckValue = String.format("%s прислали %s за %s", convertToStringDate(lastPaycheck.getDate()), lastPaycheckType, convertBillingPeriodToString(lastPaycheck.getBillingPeriod()));
+        binding.lastPaycheck.setText(lastPaycheckValue);
+
+        String nextPaycheckType = lastPaycheck.getDate().getDayOfMonth() < 20 ? "Аванс" : "Остатки";
+        int averageNextPaycheckDay = averagePaycheckDay.getOrDefault(nextPaycheckType, 0D).intValue();
+        LocalDateTime averageNextPaycheckDate = LocalDateTime.now().withDayOfMonth(averageNextPaycheckDay).plusMonths(1);
+        binding.nextPaycheckDaysValue.setText(String.format("%s потенциально пришлют %s", convertToStringDate(averageNextPaycheckDate), nextPaycheckType));
         return root;
     }
 
     private List<SummaryPaycheckInfo> getSummaryInfo() {
         if (summaryInfos == null) {
             paycheckEntries = getPaycheckEntries();
+            averagePaycheckDay = paycheckEntries.stream()
+                    .collect(Collectors.groupingBy(Paycheck::getType, averagingInt(p -> p.getDate().getDayOfMonth())));
             paycheckByPeriod = paycheckEntries.stream()
                     .collect(Collectors.groupingBy(Paycheck::getBillingPeriod));
             summaryInfos = paycheckByPeriod.keySet().stream()
