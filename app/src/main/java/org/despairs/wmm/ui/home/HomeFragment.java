@@ -54,9 +54,15 @@ public class HomeFragment extends Fragment {
         String lastPaycheckValue = String.format("%s прислали %s за %s", convertToStringDate(lastPaycheck.getDate()), lastPaycheckType, convertBillingPeriodToString(lastPaycheck.getBillingPeriod()));
         binding.lastPaycheck.setText(lastPaycheckValue);
 
-        String nextPaycheckType = lastPaycheck.getDate().getDayOfMonth() < 20 ? "Аванс" : "Остатки";
+        boolean isPrepayment = lastPaycheck.getDate().getDayOfMonth() > 20;
+        String nextPaycheckType = isPrepayment ? "Остатки" : "Аванс";
         int averageNextPaycheckDay = averagePaycheckDay.getOrDefault(nextPaycheckType, 0D).intValue();
-        LocalDateTime averageNextPaycheckDate = LocalDateTime.now().withDayOfMonth(averageNextPaycheckDay).plusMonths(1);
+
+        LocalDateTime averageNextPaycheckDate = LocalDateTime.now().withDayOfMonth(averageNextPaycheckDay);
+        if (isPrepayment) {
+            averageNextPaycheckDate = averageNextPaycheckDate.plusMonths(1);
+        }
+
         binding.nextPaycheckDaysValue.setText(String.format("%s потенциально пришлют %s", convertToStringDate(averageNextPaycheckDate), nextPaycheckType));
         return root;
     }
