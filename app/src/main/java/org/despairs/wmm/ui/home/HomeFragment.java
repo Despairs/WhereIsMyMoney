@@ -91,7 +91,7 @@ public class HomeFragment extends Fragment {
     }
 
     private List<Paycheck> getPaycheckEntries() {
-        List<Sms> messages = repo.listBySenderAndMessageContainingWords("900", "зарплаты", "отпускных", "аванса", "премии");
+        List<Sms> messages = repo.listBySenderAndMessageContainingWords("900", "зарплаты", "отпускных", "аванса", "премии", "больничных");
         return messages.stream()
                 .map(this::tryToParseAsPaycheck)
                 .flatMap(o -> o.map(Stream::of).orElseGet(Stream::empty))
@@ -120,13 +120,15 @@ public class HomeFragment extends Fragment {
             return "Аванс";
         } else if (message.contains("премии")) {
             return "Премия";
-        } else return "Неизвестно";
+        } else if (message.contains("больничных")) {
+            return "Больничные";
+        }else return "Неизвестно";
     }
 
     private LocalDateTime getBillingPeriod(Sms sms) {
         LocalDateTime date = sms.getDate();
         String message = sms.getMessage();
-        if (date.getDayOfMonth() < 20 && !message.contains("отпускных")) {
+        if (date.getDayOfMonth() < 20 && !message.contains("отпускных") && !message.contains("больничных")) {
             date = date.minusMonths(1);
         }
         return date.withDayOfMonth(1).truncatedTo(ChronoUnit.DAYS);
