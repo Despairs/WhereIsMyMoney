@@ -1,9 +1,18 @@
 package org.despairs.wmm.ui.home;
 
+import static org.despairs.wmm.utils.Converters.convertBillingPeriodToString;
+import static org.despairs.wmm.utils.Converters.convertToStringDate;
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.averagingInt;
+
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+
+import androidx.annotation.NonNull;
+import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.DividerItemDecoration;
 
 import org.despairs.wmm.databinding.FragmentHomeBinding;
 import org.despairs.wmm.repository.JdbcSmsRepository;
@@ -22,15 +31,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import androidx.annotation.NonNull;
-import androidx.fragment.app.Fragment;
-import androidx.recyclerview.widget.DividerItemDecoration;
-
-import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.averagingInt;
-import static org.despairs.wmm.utils.Converters.convertBillingPeriodToString;
-import static org.despairs.wmm.utils.Converters.convertToStringDate;
-
 public class HomeFragment extends Fragment {
 
     private final JdbcSmsRepository repo = new JdbcSmsRepository();
@@ -39,7 +39,7 @@ public class HomeFragment extends Fragment {
     private Map<LocalDateTime, List<Paycheck>> paycheckByPeriod;
     private Map<String, Double> averagePaycheckDay;
 
-    private static final Pattern PAYCHECK_SMS_PATTERN = Pattern.compile(".*\\s(\\d+(\\.\\d+)?)р Баланс.*");
+    private static final Pattern PAYCHECK_SMS_PATTERN = Pattern.compile("([0-9  .]+)р Баланс");
 
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         FragmentHomeBinding binding = FragmentHomeBinding.inflate(inflater);
@@ -101,8 +101,11 @@ public class HomeFragment extends Fragment {
     private Optional<Paycheck> tryToParseAsPaycheck(Sms sms) {
         Optional<Paycheck> ret = Optional.empty();
         Matcher matcher = PAYCHECK_SMS_PATTERN.matcher(sms.getMessage());
-        if (matcher.matches()) {
-            double amount = Double.parseDouble(matcher.group(1));
+        if (matcher.find()) {
+            String _numebr = matcher.group(1)
+                    .replace(" ", "")
+                    .replace(" ", "");
+            double amount = Double.parseDouble(_numebr);
             LocalDateTime period = getBillingPeriod(sms);
             ret = Optional.of(new Paycheck(period, sms.getDate(), amount, getType(sms)));
         }
@@ -122,7 +125,7 @@ public class HomeFragment extends Fragment {
             return "Премия";
         } else if (message.contains("больничных")) {
             return "Больничные";
-        }else return "Неизвестно";
+        } else return "Неизвестно";
     }
 
     private LocalDateTime getBillingPeriod(Sms sms) {
