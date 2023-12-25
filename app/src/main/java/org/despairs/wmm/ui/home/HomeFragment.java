@@ -102,10 +102,11 @@ public class HomeFragment extends Fragment {
         Optional<Paycheck> ret = Optional.empty();
         Matcher matcher = PAYCHECK_SMS_PATTERN.matcher(sms.getMessage());
         if (matcher.find()) {
-            String _numebr = matcher.group(1)
+            String _number = matcher.group(1)
                     .replace(" ", "")
-                    .replace(" ", "");
-            double amount = Double.parseDouble(_numebr);
+                    .replace(" ", "")
+                    .replace("\u00A0", "");
+            double amount = Double.parseDouble(_number);
             LocalDateTime period = getBillingPeriod(sms);
             ret = Optional.of(new Paycheck(period, sms.getDate(), amount, getType(sms)));
         }
